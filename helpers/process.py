@@ -134,6 +134,7 @@ def create_confluence_wiki(wiki_page):
     # Create a page in Confluence.
     new_title = wiki_page.title.replace('_', ' ')
     settings.current_page = wiki_page.title
+    space = settings.yaml_vars['confluence_space']
     print("Creating a Confluence page: {}".format(new_title))
     try:
         wiki_content = settings.update_formatting(wiki_page.text.split('{{fnlist}}', 1)[0])
@@ -156,10 +157,10 @@ def create_confluence_wiki(wiki_page):
             parent_wiki_page = settings.redmine.wiki_page.get(
                 wiki_parent, project_id=settings.yaml_vars['redmine_project_id'])
             # check if page title is present in Confluence
-            is_present = settings.confluence.page_exists(settings.yaml_vars['confluence_space'],
+            is_present = settings.confluence.page_exists(space,
                                                          parent_wiki_page.title.replace('_', ' '))
             if is_present or parent_wiki_page.title in settings.wiki_pages_imported:
-                confluence_parent_id = settings.confluence.get_page_id(settings.yaml_vars['confluence_space'],
+                confluence_parent_id = settings.confluence.get_page_id(space,
                                                                        parent_wiki_page.title.replace('_', ' '))
             elif settings.is_imported(parent_wiki_page.text):
                 parent_confluence_page = settings.get_confluence_page(parent_wiki_page.text)
@@ -226,6 +227,9 @@ def create_confluence_wiki(wiki_page):
         print("Created a new confluence page: {}".format(wiki_page.title))
         settings.wiki_pages_imported.add(wiki_page.title)
 
+        # Update Owner
+        update_wiki_owner(wiki_page.author.name, confluence_page)
+
         # Add attachments
         add_attachments(wiki_page, confluence_page)
 
@@ -238,6 +242,70 @@ def create_confluence_wiki(wiki_page):
 
     return confluence_page
 
+
+def update_wiki_owner(author_username, confluence_page):
+    """
+    Updates the owner of the confluence page.
+    Parameters:
+        author_name (string): Redmine User full name.
+        confluence_page(obj): Confluence page (Resource object).
+    Returns:
+        None.
+    """
+    try:
+        page_title = confluence_page.get('title', 'Unknown page')
+        page_id = confluence_page.get('id')
+        if not page_id:
+            print("{}: Missing page id, cannot update owner".format(page_title))
+            return
+        confluence_user = settings.get_atlassian(author_username)
+        if not confluence_user:
+            print("{}: Could not find Confluence user {}".format(page_title, author_username))
+            return
+        owner_id = confluence_user.get('accountId')
+        if not owner_id:
+            print("{}: Confluence user details missing account id for {}".format(page_title, author_username))
+            return
+        version_info = confluence_page.get('version', {})
+        current_version = version_info.get('number')
+        body_details = confluence_page.get('body', {})
+        if 'value' in body_details:
+            body_value = body_details.get('value')
+            body_representation = body_details.get('representation', 'storage')
+        else:
+            storage_section = body_details.get('storage', {})
+            body_value = storage_section.get('value')
+            body_representation = storage_section.get('representation', 'storage')
+        if current_version is None or body_value is None:
+            print("{}: Missing data required to update owner".format(page_title))
+            return
+        update_payload = {
+            "id": page_id,
+            "version": {"number": current_version + 1},
+            "title": confluence_page.get('title', page_title),
+            "status": confluence_page.get('status', 'current'),
+            "type": confluence_page.get('type', 'page'),
+            "ownerId": owner_id,
+            "body": {
+                "representation": body_representation,
+                "value": body_value,
+            },
+        }
+        response = settings.confluence.put(
+            "api/v2/pages/{}".format(page_id),
+            data=update_payload,
+            headers={"Content-Type": "application/json"},
+        )
+        if not response or response.get('ownerId') != owner_id:
+            print("{}: Failed to update owner to {}".format(page_title, author_username))
+            return
+        confluence_page['ownerId'] = owner_id
+        print("{}: Updated the owner to {}".format(page_title, author_username))
+    except Exception as e:
+        print('{}: Could not update the owner : {}'.format(
+            confluence_page.get('title', 'Unknown page'),
+            getattr(e, 'text', str(e)),
+        ))
 
 def create_jira_issue(redmine_issue):
     """

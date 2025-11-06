@@ -182,6 +182,27 @@ def get_confluence_page(description):
         return None
 
 
+def get_atlassian(username):
+    """
+    Search for the user in confluence
+    """
+
+    search_url = 'rest/api/search/user/'
+    query = {
+    'cql': 'user.fullname~\"' + username +'\"'
+    }
+
+    try:
+        found_users = confluence.get(search_url, params=query)
+    except Exception as e:
+        print(e)
+        return
+
+    if len(found_users['results']) > 1:
+        return ValueError("Multiple users found")
+    else:
+        return found_users['results'][0]["user"]
+
 def update_formatting(description):
     """
     Updates formatting of the issue and comment description before importing in Jira.
