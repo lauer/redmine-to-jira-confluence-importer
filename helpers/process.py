@@ -656,6 +656,8 @@ def add_attachments(source, destination):
     Returns:
         None.
     """
+    added_attachments = []
+
     try:
         for item in source.attachments:
             attachment = settings.redmine.attachment.get(item.id)
@@ -676,7 +678,19 @@ def add_attachments(source, destination):
                                                          status['reason'])
                 else:
                     print("{}: Added attachment: {}".format(source.title, item.filename))
+                    added_attachments += [item.filename]
             os.remove(file_path)
+
+        # We need to update the page, if files has been attached to the content page
+        if len(added_attachments) > 0:
+            print(" Updated page after uploading attachment")
+            # if the attached files is not images added in the content, we should add a list of attachments at the buttom.
+            if not any(f in destination['body']['storage']['value'] for f in added_attachments):
+                added_content = '<ac:structured-macro ac:name="attachments" ac:schema-version="1" data-layout="wide"><ac:parameter ac:name="upload">false</ac:parameter></ac:structured-macro>'
+            else:
+                added_content = ''
+            settings.confluence.append_page(destination['id'], destination['title'], added_content, minor_edit=True)
+
     except settings.ConfluenceImportError as error:
         print('Failed to add an attachmentConfluenceImportError to a confluence page: {}'.
               format(error))
