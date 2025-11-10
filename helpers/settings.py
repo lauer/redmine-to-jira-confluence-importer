@@ -241,6 +241,8 @@ def update_formatting(description):
         formatted_description = formatted_description.replace('</notextile>', '')
         formatted_description = formatted_description.replace('<code>', '{code}')
         formatted_description = formatted_description.replace('</code>', '{code}')
+        formatted_description = re.sub(r'{height: (\d+).*}', '', formatted_description)
+        formatted_description = re.sub(r'{width: (\d+).*}', '', formatted_description)
         match_source_code = re.findall(r"<code class=\"(.*?)\">", formatted_description)
         match_child_macro = re.findall(r"{{child_pages\(depth=(.*?)\)}}", formatted_description)
         # Need to redesign the following replace as [] can occur in the code or within {nofomat}
@@ -248,7 +250,7 @@ def update_formatting(description):
         match_single_square_markup = re.findall(r"\[(.*?)\]", formatted_description)
         match_double_square_markup = re.findall(r"\[\[(.*?)\]\]", formatted_description)
         match_pc_markup = re.findall(r"%(.*?)%", formatted_description)
-        match_bg_markup = re.findall(r"{background:(.*?)}", formatted_description)
+        match_bg_markup = re.findall(r"{(?:background|background-color):(.*?)}", formatted_description)
         try:
 
             for matched_code in set(match_pc_markup):
@@ -257,6 +259,8 @@ def update_formatting(description):
                     '*{}*'.format(matched_code))
 
             for matched_code in set(match_bg_markup):
+                formatted_description = formatted_description.replace(
+                    '{{background-color:{}}}'.format(matched_code), '')
                 formatted_description = formatted_description.replace(
                     '{{background:{}}}'.format(matched_code), '')
 

@@ -1,6 +1,7 @@
 import helpers.settings as settings
 import os
 import re
+import json
 
 
 def get_login(user_id):
@@ -167,16 +168,27 @@ def create_confluence_wiki(wiki_page):
                 confluence_parent_id = parent_confluence_page['id']
                 print("{}: Parent page found in Confluence: {}".format(
                     new_title, parent_confluence_page['title']))
-        confluence_page = settings.confluence.create_page(
-            space=settings.yaml_vars['confluence_space'],
-            parent_id=confluence_parent_id,
-            title=new_title,
-            body=wiki_content,
-            representation='wiki')
+
+        try:
+            if not settings.confluence.page_exists(space, new_title):
+                confluence_page = settings.confluence.create_page(
+                    space=space,
+                    parent_id=confluence_parent_id,
+                    title=new_title,
+                    body=wiki_content,
+                    representation='wiki')
+            else:
+                confluence_page = settings.confluence.get_pages_by_title(space, new_title, expand="body.storage,version")
+                print("{}: Skipping page - already exists".format(new_title))
+                return
+
+        except Exception as e:
+            print(e.response.json())
+            confluence_page = e.response.json()
 
         while 'statusCode' in confluence_page and "UnknownMacroMigrationException: The macro " in \
                 confluence_page['message']:
-            unknown_macro = re.findall("The macro '(.*?)' is unknown", confluence_page['message'], 
+            unknown_macro = re.findall("The macro '(.*?)' is unknown", confluence_page['message'],
                                        re.DOTALL)
             print("Previous attempt to create a Confluence page failed because of the unknown"
                   " macro : " + unknown_macro[0])
@@ -213,12 +225,15 @@ def create_confluence_wiki(wiki_page):
                                                "\\{" + wiki_content[unknown_macro_index + 1:]
 
             print("Trying to create {} page again as the previous attempt was failed".format(wiki_page.title))
-            confluence_page = settings.confluence.create_page(
-                space=settings.yaml_vars['confluence_space'],
-                parent_id=confluence_parent_id,
-                title=new_title,
-                body=wiki_content,
-                representation='wiki')
+            try:
+                confluence_page = settings.confluence.create_page(
+                    space=settings.yaml_vars['confluence_space'],
+                    parent_id=confluence_parent_id,
+                    title=new_title,
+                    body=wiki_content,
+                    representation='wiki')
+            except Exception as e:
+                confluence_page = e.response.text
 
         if not is_migration_successful(confluence_page):
             raise settings.ConfluenceImportError(confluence_page['statusCode'],
