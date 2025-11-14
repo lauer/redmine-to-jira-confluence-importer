@@ -72,6 +72,9 @@ def main():
         finally:
             print("Migrated {} pages to Confluence".format(len(settings.wiki_pages_imported)))
 
-
-main()
-
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nMigration interrupted by user (Ctrl+C).")
+        raise SystemExit(1)
