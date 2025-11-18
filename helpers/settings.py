@@ -32,7 +32,7 @@ def init():
     Returns:
         None.
     """
-    global yaml_vars, arg_vars, redmine, jira, confluence, wiki_pages_rel, wiki_pages_imported, current_page
+    global yaml_vars, arg_vars, redmine, jira, confluence, wiki_pages_rel, wiki_pages_imported, wiki_pages_processed, current_page, atlassian_found_users
     dir_path = os.path.dirname(os.path.realpath(__file__))
     arg_vars = get_args()
 
@@ -63,9 +63,29 @@ def init():
     jira = JIRA({'server': yaml_vars['jira_server'], 'verify': False},
                 basic_auth=(yaml_vars['jira_user'],
                             base64.b64decode(yaml_vars['jira_password']).decode("utf-8")))
-    confluence = Confluence(url=yaml_vars['confluence_server'],
+    confluence = Confluence(url=get_atlassian_api_url(yaml_vars['confluence_server']),
                             username=yaml_vars['confluence_user'],
                             password=base64.b64decode(yaml_vars['confluence_password']).decode("utf-8"))
+
+
+def get_atlassian_api_url(cloud_server_url):
+    """
+    Helper method to retrieve cloudID from atlassian.
+    This is needed when using a ServiceAccount as username
+    Parameters:
+        cloud_server_url (string): The custom url for atlassian
+    Returns:
+        Atlassian API url with with the cloud ID
+    """
+    try:
+        resp = requests.get(cloud_server_url + "_edge/tenant_info")
+        resp.raise_for_status()  # Raises a HTTPError if the status is 4xx, 5xxx
+        cloudID = resp.json()['cloudId']
+    except Exception as e:
+        print(e)
+        return
+
+    return "https://api.atlassian.com/ex/confluence/{}/".format(cloudID)
 
 
 def get_config_data(file_path):
@@ -182,26 +202,39 @@ def get_confluence_page(description):
         return None
 
 
-def get_atlassian(username):
+def get_atlassian_user(redmine_author):
     """
-    Search for the user in confluence
+    Search for the user in confluence. It will cache found users
+    Parameters:
+        redmine_auther (object): Redmine Wiki Author object with name and id
+    Returns:
+        Returns the atlassian user object
     """
+    search_key =  redmine_author
 
     search_url = 'rest/api/search/user/'
     query = {
-    'cql': 'user.fullname~\"' + username +'\"'
+    'cql': 'user.fullname~\"{}\"'.format(search_key)
     }
+
+    # Lookup cached found users
+    if atlassian_found_users.get(search_key):
+        return atlassian_found_users.get(search_key)
 
     try:
         found_users = confluence.get(search_url, params=query)
+
     except Exception as e:
-        print(e)
-        return
+        print("Error searching for concluence user: {}".format(e))
+        raise()
+        # return
 
     if len(found_users['results']) > 1:
         return ValueError("Multiple users found")
     else:
-        return found_users['results'][0]["user"]
+        atlassian_user = found_users['results'][0]["user"]
+        atlassian_found_users[search_key] = atlassian_user
+        return atlassian_user
 
 def update_formatting(description):
     """

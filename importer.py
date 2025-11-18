@@ -5,6 +5,7 @@ Python program for exporting issues/wiki pages from Remine to Jira/Confluence
 import helpers.process as process
 import helpers.settings as settings
 import logging
+import traceback
 
 
 logging.basicConfig(level=logging.CRITICAL, filename='importer.log')
@@ -39,7 +40,9 @@ def main():
     elif settings.arg_vars.wiki:
         try:
             settings.wiki_pages_rel = dict()
+            settings.wiki_pages_processed = set()
             settings.wiki_pages_imported = set()
+            settings.atlassian_found_users = dict()
             if settings.arg_vars.multiple or settings.arg_vars.all:
                 # Fetch Redmine wiki pages and initialize a dict with Parent - Child relations.
                 wiki_pages = process.get_pages_info()
@@ -68,6 +71,7 @@ def main():
         except Exception as e:
             print("Failed while importing the Redmine Wiki - {} : {}".format(
                 settings.arg_vars.wiki, e))
+            print(traceback.format_exc())
 
         finally:
             print("Migrated {} pages to Confluence".format(len(settings.wiki_pages_imported)))

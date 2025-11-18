@@ -3,6 +3,23 @@ import os
 import re
 import json
 
+def _mark_page_processed(title):
+    settings.wiki_pages_processed.add(title)
+
+def _progress_marker(upcoming=False):
+    """
+    Returns a formatted progress label like [3/10].
+    The upcoming flag lets us show the next page before it is recorded as imported.
+    """
+    processed = len(settings.wiki_pages_processed)
+    total_source = settings.wiki_pages_rel
+    total = len(total_source) or processed or 1
+    current = processed + (1 if upcoming else 0)
+    if current > total:
+        total = current
+    if current == 0 and upcoming:
+        current = 1
+    return "[{}/{}]".format(current, total)
 
 def get_login(user_id):
     """
@@ -136,7 +153,7 @@ def create_confluence_wiki(wiki_page):
     new_title = wiki_page.title.replace('_', ' ')
     settings.current_page = wiki_page.title
     space = settings.yaml_vars['confluence_space']
-    print("Creating a Confluence page: {}".format(new_title))
+    print("🚀 {} Creating Confluence page: {}".format(_progress_marker(upcoming=True), new_title))
     try:
         wiki_content = settings.update_formatting(wiki_page.text.split('{{fnlist}}', 1)[0])
         wiki_page_first_version = settings.redmine.wiki_page.get(wiki_page.title,
@@ -148,6 +165,12 @@ def create_confluence_wiki(wiki_page):
             wiki_page.title, settings.yaml_vars['redmine_server'],
             settings.yaml_vars['redmine_wiki_project'], wiki_page.title,
             wiki_page.created_on, wiki_page_first_version.author.name, wiki_page.updated_on, wiki_page.author.name)
+
+        # Find the author for later to be set as owner of the article
+        confluence_user = settings.get_atlassian_user(wiki_page.author.name)
+        if not confluence_user:
+            print("{}: Could not find Confluence user {}".format(wiki_page.title, wiki_page.author.name))
+            raise
 
         # Get the parent, if present
         confluence_parent_id = None
@@ -179,11 +202,12 @@ def create_confluence_wiki(wiki_page):
                     representation='wiki')
             else:
                 confluence_page = settings.confluence.get_pages_by_title(space, new_title, expand="body.storage,version")
-                print("{}: Skipping page - already exists".format(new_title))
+                _mark_page_processed(wiki_page.title)
+                print("⏭️ {} Skipping page - already exists: {}".format(_progress_marker(), new_title))
                 return
 
         except Exception as e:
-            print(e.response.json())
+            print("Problems creating page: {}".format(e))
             confluence_page = e.response.json()
 
         while 'statusCode' in confluence_page and "UnknownMacroMigrationException: The macro " in \
@@ -239,8 +263,9 @@ def create_confluence_wiki(wiki_page):
             raise settings.ConfluenceImportError(confluence_page['statusCode'],
                                                  confluence_page['message'],
                                                  confluence_page['reason'])
-        print("Created a new confluence page: {}".format(wiki_page.title))
         settings.wiki_pages_imported.add(wiki_page.title)
+        _mark_page_processed(wiki_page.title)
+        print("✅ {} Created Confluence page: {}".format(_progress_marker(), wiki_page.title))
 
         # Update Owner
         update_wiki_owner(wiki_page.author.name, confluence_page)
@@ -258,7 +283,7 @@ def create_confluence_wiki(wiki_page):
     return confluence_page
 
 
-def update_wiki_owner(author_username, confluence_page):
+def update_wiki_owner(wiki_page_author, confluence_page):
     """
     Updates the owner of the confluence page.
     Parameters:
@@ -273,14 +298,6 @@ def update_wiki_owner(author_username, confluence_page):
         if not page_id:
             print("{}: Missing page id, cannot update owner".format(page_title))
             return
-        confluence_user = settings.get_atlassian(author_username)
-        if not confluence_user:
-            print("{}: Could not find Confluence user {}".format(page_title, author_username))
-            return
-        owner_id = confluence_user.get('accountId')
-        if not owner_id:
-            print("{}: Confluence user details missing account id for {}".format(page_title, author_username))
-            return
         version_info = confluence_page.get('version', {})
         current_version = version_info.get('number')
         body_details = confluence_page.get('body', {})
@@ -294,13 +311,17 @@ def update_wiki_owner(author_username, confluence_page):
         if current_version is None or body_value is None:
             print("{}: Missing data required to update owner".format(page_title))
             return
+
+        confluence_user = settings.get_atlassian_user(wiki_page_author)
+        confluence_account_id = confluence_user.get('accountId')
+
         update_payload = {
             "id": page_id,
             "version": {"number": current_version + 1},
             "title": confluence_page.get('title', page_title),
             "status": confluence_page.get('status', 'current'),
             "type": confluence_page.get('type', 'page'),
-            "ownerId": owner_id,
+            "ownerId": confluence_account_id,
             "body": {
                 "representation": body_representation,
                 "value": body_value,
@@ -311,16 +332,17 @@ def update_wiki_owner(author_username, confluence_page):
             data=update_payload,
             headers={"Content-Type": "application/json"},
         )
-        if not response or response.get('ownerId') != owner_id:
-            print("{}: Failed to update owner to {}".format(page_title, author_username))
+        if not response or response.get('ownerId') != confluence_account_id:
+            print("{}: Failed to update owner to {}".format(page_title, wiki_page_author))
             return
-        confluence_page['ownerId'] = owner_id
-        print("{}: Updated the owner to {}".format(page_title, author_username))
+        confluence_page['ownerId'] = confluence_account_id
+        print("{}: Updated the owner to {}".format(page_title, wiki_page_author))
     except Exception as e:
         print('{}: Could not update the owner : {}'.format(
             confluence_page.get('title', 'Unknown page'),
             getattr(e, 'text', str(e)),
         ))
+        raise
 
 def create_jira_issue(redmine_issue):
     """
@@ -840,5 +862,3 @@ def add_subtasks(redmine_issue, jira_issue):
         update_status(child, subtask.status.name.lower(), 'subtask')
         add_comments(subtask, child)
         add_attachments(subtask, child)
-
-
