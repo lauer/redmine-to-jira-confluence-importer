@@ -231,6 +231,9 @@ def get_atlassian_user(redmine_author):
 
     if len(found_users['results']) > 1:
         return ValueError("Multiple users found")
+    elif len(found_users['results']) < 1:
+        print("Could not find {} in confluence".format(search_key))
+        return
     else:
         atlassian_user = found_users['results'][0]["user"]
         atlassian_found_users[search_key] = atlassian_user

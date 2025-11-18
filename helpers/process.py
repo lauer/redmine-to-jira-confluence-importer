@@ -1,7 +1,6 @@
 import helpers.settings as settings
 import os
 import re
-import json
 
 def _mark_page_processed(title):
     settings.wiki_pages_processed.add(title)
@@ -169,8 +168,7 @@ def create_confluence_wiki(wiki_page):
         # Find the author for later to be set as owner of the article
         confluence_user = settings.get_atlassian_user(wiki_page.author.name)
         if not confluence_user:
-            print("{}: Could not find Confluence user {}".format(wiki_page.title, wiki_page.author.name))
-            raise
+            print("⚠️ {}: Could not find Confluence user {}".format(wiki_page.title, wiki_page.author.name))
 
         # Get the parent, if present
         confluence_parent_id = None
@@ -268,7 +266,11 @@ def create_confluence_wiki(wiki_page):
         print("✅ {} Created Confluence page: {}".format(_progress_marker(), wiki_page.title))
 
         # Update Owner
-        update_wiki_owner(wiki_page.author.name, confluence_page)
+        try:
+            if confluence_user:
+                update_wiki_owner(wiki_page.author.name, confluence_page)
+        except Exception as e:
+            print("⛔️ {} Could not update owner to {} to user {}: {}".format(_progress_marker(), wiki_page.title, wiki_page.author.name, e))
 
         # Add attachments
         add_attachments(wiki_page, confluence_page)
