@@ -32,9 +32,12 @@ def init():
     Returns:
         None.
     """
-    global yaml_vars, arg_vars, redmine, jira, confluence, wiki_pages_rel, wiki_pages_imported, wiki_pages_processed, current_page, atlassian_found_users
+    global yaml_vars, arg_vars, redmine, jira, confluence
+    global wiki_pages_rel, wiki_pages_imported, wiki_pages_processed, wiki_pages_all
+    global current_page, atlassian_found_users
     dir_path = os.path.dirname(os.path.realpath(__file__))
     arg_vars = get_args()
+    wiki_pages_all = dict()
 
     # Check if the .yaml file provided in the command line arguments, if yes, use the provided file.
     # Otherwise, use 'vars.yaml'.

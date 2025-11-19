@@ -11,8 +11,7 @@ def _progress_marker(upcoming=False):
     The upcoming flag lets us show the next page before it is recorded as imported.
     """
     processed = len(settings.wiki_pages_processed)
-    total_source = settings.wiki_pages_rel
-    total = len(total_source) or processed or 1
+    total = len(settings.wiki_pages_all) or processed or 1
     current = processed + (1 if upcoming else 0)
     if current > total:
         total = current

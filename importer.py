@@ -45,8 +45,8 @@ def main():
             settings.atlassian_found_users = dict()
             if settings.arg_vars.multiple or settings.arg_vars.all:
                 # Fetch Redmine wiki pages and initialize a dict with Parent - Child relations.
-                wiki_pages = process.get_pages_info()
-                for page in wiki_pages:
+                settings.wiki_pages_all = process.get_pages_info()
+                for page in settings.wiki_pages_all:
                     if 'parent' in page:
                         if page['parent']['title'] not in settings.wiki_pages_rel:
                             settings.wiki_pages_rel[page['parent']['title']] = page['title']
