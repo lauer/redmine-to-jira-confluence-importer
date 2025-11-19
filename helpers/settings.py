@@ -265,6 +265,14 @@ def update_formatting(description):
             '#{}'.format(matched_pbi), '[#{}|{}/issues/{}]'.format(
                 matched_pbi, yaml_vars['redmine_server'], matched_pbi))
 
+    # Replace drawio_attach(drawing.png) → !drawing.png!
+    drawio_matches = re.findall(r"{{drawio_attach\((.*?)\)}}", formatted_description)
+    for matched_file in set(drawio_matches):
+        formatted_description = formatted_description.replace(
+            "{{drawio_attach(%s)}}" % matched_file,
+            "!" + matched_file + "!"
+        )
+
     if arg_vars.wiki:
         formatted_description = formatted_description.replace('{{>toc}}', '{toc}')
         # Replace || with | | to render an empty cell of the table in Confluence
