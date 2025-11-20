@@ -196,6 +196,7 @@ def create_confluence_wiki(wiki_page):
                     parent_id=confluence_parent_id,
                     title=new_title,
                     body=wiki_content,
+                    full_width=True,
                     representation='wiki')
             else:
                 confluence_page = settings.confluence.get_pages_by_title(space, new_title, expand="body.storage,version")
@@ -252,6 +253,7 @@ def create_confluence_wiki(wiki_page):
                     parent_id=confluence_parent_id,
                     title=new_title,
                     body=wiki_content,
+                    full_width=True,
                     representation='wiki')
             except Exception as e:
                 confluence_page = e.response.text
