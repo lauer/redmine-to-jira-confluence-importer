@@ -181,7 +181,7 @@ def is_imported(subject):
     """
     if arg_vars.pbi and '[JIRA-{}-'.format(yaml_vars['jira_project']) in subject:
         return True
-    elif arg_vars.wiki and '*Migrated to Confluence "' in subject:
+    elif arg_vars.wiki and 'Migrated to Confluence "' in subject:
         return True
     else:
         return False
@@ -195,8 +195,8 @@ def get_confluence_page(description):
     Returns:
         Returns the Confluence page object, if found. Otherwise None will be returned.
     """
-    if arg_vars.wiki and '*Migrated to Confluence "' in description:
-        match_patterns = re.findall(r"\*Migrated to Confluence \"(.*?)\"", description)
+    if arg_vars.wiki and 'Migrated to Confluence "' in description:
+        match_patterns = re.findall(r"Migrated to Confluence \"(.*?)\"", description)
         for match_pattern in match_patterns:
             confluence_page = confluence.get_page_by_title(yaml_vars['confluence_space'], match_pattern)
             if confluence_page is not None:

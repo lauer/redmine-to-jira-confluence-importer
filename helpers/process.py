@@ -126,7 +126,7 @@ def import_confluence_wiki(wiki_page_title):
     if not settings.is_imported(wiki_page.text) and wiki_page.title not in settings.wiki_pages_imported:
         confluence_page = create_confluence_wiki(wiki_page)
         # Update the original Wiki page and add a link to the Confluence Page, if requested.
-        if settings.arg_vars.remove:
+        if settings.arg_vars.remove and confluence_page:
             update_redmine_wiki(confluence_page, wiki_page)
 
     # Import child pages, if they are present.
@@ -202,7 +202,7 @@ def create_confluence_wiki(wiki_page):
                 confluence_page = settings.confluence.get_pages_by_title(space, new_title, expand="body.storage,version")
                 _mark_page_processed(wiki_page.title)
                 print("⏭️ {} Skipping page - already exists: {}".format(_progress_marker(), new_title))
-                return
+                return confluence_page
 
         except Exception as e:
             print("Problems creating page: {}".format(e))
@@ -646,13 +646,12 @@ def update_redmine_wiki(confluence_page, wiki_page):
     Returns:
         None.
     """
-    confluence_url = confluence_page['_links']['base'] + confluence_page['_links']['webui']
-    reference_sentence = '\n*Migrated to Confluence "{}":{}*'.format(confluence_page['title'],
+    confluence_url = settings.yaml_vars['confluence_server'] + "wiki" + confluence_page['_links']['webui']
+    reference_sentence = 'h2. Migrated to Confluence "{}":{} \n\n'.format(confluence_page['title'],
                                                                      confluence_url)
-    wiki_page.text += reference_sentence
+    wiki_page.text = reference_sentence + wiki_page.text
     wiki_page.save()
     print("{}: Added reference to the Confluence page".format(wiki_page.title))
-
 
 def relate_issues(jira_issue, redmine_issue):
     """
